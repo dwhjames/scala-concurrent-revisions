@@ -1,19 +1,21 @@
 package revisions
 
+import scala.collection.mutable
+
 import java.util.concurrent.atomic.AtomicInteger
 
 
-class Segment {
-  private[revisions] var refCount = new AtomicInteger(1)
+class Segment(
+    private[revisions] var parent: Segment
+) {
+  private[revisions] val refCount = new AtomicInteger(1)
+  private[revisions] val version: Int = Segment.versionCount.getAndIncrement()
+  private[revisions] val written = mutable.ListBuffer.empty[Versioned]
 
-  var parent: Segment = null
-  val version: Int = Segment.versionCount.getAndIncrement()
-  var written: Seq[Versioned] = List()
+  if (parent ne null) parent.refCount.getAndIncrement()
 
-  def this(parent: Segment) {
-    this()
-    this.parent = parent
-    if (parent ne null) parent.refCount.getAndIncrement()
+  def this() {
+    this(null)
   }
 
   def release(): Unit =

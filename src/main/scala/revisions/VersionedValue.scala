@@ -26,7 +26,7 @@ class VersionedValue[T] extends Versioned {
   def set(r: Revision, v: T): Unit = {
     val s: Segment = r.current
     if (!versions.contains(s.version)) {
-      s.written = s.written :+ this
+      s.written += this
     }
     versions(s.version) = v
   }
