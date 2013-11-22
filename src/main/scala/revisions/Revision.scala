@@ -1,10 +1,13 @@
 package revisions
 
-import java.util.concurrent.{Callable, ExecutorService, Future}
+import java.util.concurrent.{ExecutorService, Future}
 
 
-class Revision(val root: Segment, var current: Segment) {
-  private var task: Future[Unit] = _
+class Revision(
+    private[revisions] val root: Segment,
+    private[revisions] var current: Segment
+) {
+  private var task: Future[_] = _
 
   def fork(action: => Unit)(implicit execServ: ExecutorService): Revision = {
     val r = new Revision(current, new Segment(current))
@@ -14,8 +17,8 @@ class Revision(val root: Segment, var current: Segment) {
 
     current = new Segment(current)
 
-    r.task = execServ.submit(new Callable[Unit] {
-      override def call(): Unit = {
+    r.task = execServ.submit(new Runnable {
+      override def run(): Unit = {
         val previous = Revision.currentRevision.get()
         Revision.currentRevision.set(r)
         try {
