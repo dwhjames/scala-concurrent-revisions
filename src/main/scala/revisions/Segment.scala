@@ -20,15 +20,22 @@ class Segment(
 
   def release(): Unit =
     if (refCount.decrementAndGet() == 0) {
+      // if ref count reaches zero
+      // release the value for every versioned written in this segment
       for (v <- written) v.release(this)
+      // and release the parent if it exists
       if (parent ne null) parent.release()
     }
 
   def collapse(main: Revision): Unit = {
-    assert(main.current eq this)
+    // we should only be invoking this method on the current segment of the revision
+    require(main.current eq this)
 
+    // while parent is not the root, and parent is not referenced
     while ((parent ne main.root) && (parent.refCount.get() == 0)) {
-      for (v <- parent.written) v.collapse(main, parent)
+      // collapse every versioned object written to in the parent
+      for (v <- parent.written)
+        v.collapse(main, parent)
       parent = parent.parent
     }
   }

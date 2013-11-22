@@ -31,12 +31,17 @@ class VersionedValue[T] extends Versioned {
     versions(s.version) = v
   }
 
-  override def release(release: Segment): Unit = versions.remove(release.version)
+  // release the value stored for a segment
+  override def release(release: Segment): Unit =
+    versions.remove(release.version)
 
+  // collapse the value in the parent segment into the main revision
   override def collapse(main: Revision, parent: Segment): Unit = {
     if (!versions.contains(main.current.version)) {
+      // if not already written in main, copy from parent
       set(main, versions(parent.version))
     }
+    // release value for parent
     versions.remove(parent.version)
   }
 
