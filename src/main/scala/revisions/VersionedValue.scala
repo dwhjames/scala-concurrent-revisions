@@ -58,11 +58,18 @@ class VersionedValue[T] extends Versioned {
   }
 
   override def merge(main: Revision, joinRev: Revision, join: Segment): Unit = {
+    require(versions.contains(join.version))
+
+    // walk back up the segment history of the revision to be joined
     var s: Segment = joinRev.current
     while (!versions.contains(s.version)) {
+      // while this value does not have a version in the segment
       s = s.parent
     }
-    if (s eq join) { // only merge if this was the last write
+    if (s eq join) {
+      // only merge if the join segment was the last write
+      // in the segment history of the join revision
+      // merge the value into the master revision
       set(main, versions(join.version))
     }
   }
