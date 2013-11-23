@@ -10,25 +10,37 @@ class VersionedValue[T] extends Versioned {
     set(initial)
   }
 
+  @inline
   def value: T = get
+
+  @inline
   def value_=(v: T): Unit = set(v)
 
-  def get: T = get(Revision.currentRevision.get())
-  def get(r: Revision): T = {
-    var s: Segment = r.current
+  @inline
+  def get: T =
+    get(Revision.currentRevision.get())
+  @inline
+  def get(rev: Revision): T =
+    get(rev.current)
+  def get(seg: Segment): T = {
+    var s = seg
     while (!versions.contains(s.version)) {
       s = s.parent
     }
     versions(s.version)
   }
 
-  def set(v: T): Unit = set(Revision.currentRevision.get(), v)
-  def set(r: Revision, v: T): Unit = {
-    val s: Segment = r.current
-    if (!versions.contains(s.version)) {
-      s.written += this
+  @inline
+  def set(v: T): Unit =
+    set(Revision.currentRevision.get(), v)
+  @inline
+  def set(rev: Revision, v: T): Unit =
+    set(rev.current, v)
+  def set(seg: Segment, v: T): Unit = {
+    if (!versions.contains(seg.version)) {
+      seg.written += this
     }
-    versions(s.version) = v
+    versions(seg.version) = v
   }
 
   // release the value stored for a segment
