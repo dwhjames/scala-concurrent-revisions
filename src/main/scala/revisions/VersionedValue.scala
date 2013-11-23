@@ -1,9 +1,11 @@
 package revisions
 
+import scala.collection.concurrent
+
 
 class VersionedValue[T] extends Versioned {
-  val versions: scala.collection.concurrent.Map[Int, T] =
-    new scala.collection.concurrent.TrieMap[Int, T]
+  val versions: concurrent.Map[Int, T] =
+    new concurrent.TrieMap[Int, T]
 
   def this(initial: T) {
     this()
