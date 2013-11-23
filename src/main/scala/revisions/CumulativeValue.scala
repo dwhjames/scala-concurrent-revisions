@@ -1,7 +1,9 @@
 package revisions
 
 
-class VersionedValue[T](initial: T) extends AbstractVersioned[T](initial) {
+abstract class CumulativeValue[T](initial: T) extends AbstractVersioned[T](initial) {
+
+  def mergeValue(root: T, main: T, join: T): T
 
   override def merge(main: Revision, joinRev: Revision, join: Segment): Unit = {
     require(versions.contains(join.version))
@@ -16,13 +18,15 @@ class VersionedValue[T](initial: T) extends AbstractVersioned[T](initial) {
       // only merge if the join segment was the last write
       // in the segment history of the join revision
       // merge the value into the master revision
-      set(main, versions(join.version))
+      set(main, mergeValue(get(joinRev.root), get(main), versions(join.version)))
     }
   }
 
 }
 
-object VersionedValue {
-  def apply[T](initial: T): VersionedValue[T] =
-    new VersionedValue[T](initial)
+object CumulativeValue {
+  def apply[T](initial: T, f: (T, T, T) => T): CumulativeValue[T] =
+    new CumulativeValue[T](initial) {
+      override def mergeValue(root: T, main: T, join: T): T = f(root, main, join)
+    }
 }
