@@ -27,7 +27,7 @@ class Segment(
       if (parent ne null) parent.release()
     }
 
-  def collapse(main: Revision): Unit = {
+  def collapse(main: Revision[_]): Unit = {
     // we should only be invoking this method on the current segment of the revision
     require(main.current eq this)
 

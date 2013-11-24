@@ -172,12 +172,10 @@ class VersionedValueSpec extends FunSuite {
     val x = VersionedValue(5)
     val y = VersionedValue(7)
 
-    var r2: Revision = null
-
     val r1 = Revision.fork {
       assert(x.value === 5)
 
-      r2 = Revision.fork {
+      val r2 = Revision.fork {
         assert(y.value === 7)
 
         if (y.value == 7) x.value = 10
@@ -188,6 +186,8 @@ class VersionedValueSpec extends FunSuite {
       if (x.value == 5) y.value = 1
 
       assert(y.value === 1)
+
+      r2
     }
 
     if (x.value == 5) y.value =  111
@@ -195,7 +195,7 @@ class VersionedValueSpec extends FunSuite {
     assert(x.value === 5)
     assert(y.value === 111)
 
-    Revision.join(r1)
+    val r2 = Revision.join(r1)
 
     assert(x.value === 5)
     assert(y.value === 1)
@@ -231,8 +231,6 @@ class VersionedValueSpec extends FunSuite {
   test("inner branch merged after outer brach with cumulative value") {
     val x = CumulativeValue(0, addMerge)
 
-    var r2: Revision = null
-
     val r1 = Revision.fork {
       assert(x.value === 0)
 
@@ -240,7 +238,7 @@ class VersionedValueSpec extends FunSuite {
 
       assert(x.value === 1)
 
-      r2 = Revision.fork {
+      val r2 = Revision.fork {
         assert(x.value === 1)
 
         x.value += 3
@@ -249,13 +247,15 @@ class VersionedValueSpec extends FunSuite {
       }
 
       assert(x.value === 1)
+
+      r2
     }
 
     x.value += 2
 
     assert(x.value === 2)
 
-    Revision.join(r1)
+    val r2 = Revision.join(r1)
 
     assert(x.value === 3)
 

@@ -5,7 +5,7 @@ abstract class CumulativeValue[T](initial: T) extends AbstractVersioned[T](initi
 
   def mergeValue(root: T, main: T, join: T): T
 
-  override def merge(main: Revision, joinRev: Revision, join: Segment): Unit = {
+  override def merge(main: Revision[_], joinRev: Revision[_], join: Segment): Unit = {
     require(versions.contains(join.version))
 
     // walk back up the segment history of the revision to be joined

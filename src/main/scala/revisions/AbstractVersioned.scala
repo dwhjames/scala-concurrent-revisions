@@ -28,7 +28,7 @@ abstract class AbstractVersioned[T] extends Versioned {
   def get: T =
     get(Revision.currentRevision.get())
   @inline
-  def get(rev: Revision): T =
+  def get(rev: Revision[_]): T =
     get(rev.current)
   def get(seg: Segment): T = {
     val c = cache
@@ -48,7 +48,7 @@ abstract class AbstractVersioned[T] extends Versioned {
   def set(v: T): Unit =
     set(Revision.currentRevision.get(), v)
   @inline
-  def set(rev: Revision, v: T): Unit =
+  def set(rev: Revision[_], v: T): Unit =
     set(rev.current, v)
   def set(seg: Segment, v: T): Unit = {
     if (!versions.contains(seg.version)) {
@@ -63,7 +63,7 @@ abstract class AbstractVersioned[T] extends Versioned {
     versions.remove(release.version)
 
   // collapse the value in the parent segment into the main revision
-  override def collapse(main: Revision, parent: Segment): Unit = {
+  override def collapse(main: Revision[_], parent: Segment): Unit = {
     if (!versions.contains(main.current.version)) {
       // if not already written in main, copy from parent
       set(main, versions(parent.version))
