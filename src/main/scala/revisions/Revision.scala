@@ -10,15 +10,25 @@ class Revision(
   private var task: Future[_] = _
 
   def fork(action: => Unit)(implicit execServ: ExecutorService): Revision = {
-    // construct a new revision with the current segment as the root
-    // and a new segement as its current (where its parent is the root)
-    val r = new Revision(current, new Segment(current))
+    // construct a revision for the new branch
+    val r =
+      if (current.written.isEmpty) {
+        // if there have been no writes in the current segment of the
+        // main revision, then we can reüse it
+        new Revision(current.parent, new Segment(current.parent))
+      } else {
+        // construct a new revision with the current segment as the root
+        // and a new segement as its current (where its parent is the root)
+        val _r = new Revision(current, new Segment(current))
 
-    assert(current.refCount.get() > 1)
-    current.release() // cannot bring refcount to zero
+        // release the current segment in the main revision
+        assert(current.refCount.get() > 1)
+        current.release() // cannot bring refcount to zero
+        // and create new current segment with old current as its parent
+        current = new Segment(current)
 
-    // create new current segment with old current as its parent
-    current = new Segment(current)
+        _r
+      }
 
     // fill in the task for the new segment
     // submit the call by name argument to the executor service
