@@ -7,6 +7,12 @@ abstract class AbstractVersioned[T] extends Versioned {
   protected val versions: concurrent.Map[Int, T] =
     new concurrent.TrieMap[Int, T]
 
+  // a cache of the last read or write to this versioned object
+  // the lower 16 bits contain the version number of the segment
+  // the higher 16 bits contain the index of the value in the map
+  @volatile
+  private var cache: Int = 0
+
   def this(initial: T) {
     this()
     set(initial)
@@ -25,11 +31,17 @@ abstract class AbstractVersioned[T] extends Versioned {
   def get(rev: Revision): T =
     get(rev.current)
   def get(seg: Segment): T = {
-    var s = seg
-    while (!versions.contains(s.version)) {
-      s = s.parent
+    val c = cache
+    if (seg.version == (c & 0xFFFF)) {
+      versions(c >>> 16)
+    } else {
+      var s = seg
+      while (!versions.contains(s.version)) {
+        s = s.parent
+      }
+      cache = ((s.version << 16) | (seg.version & 0xFFFF))
+      versions(s.version)
     }
-    versions(s.version)
   }
 
   @inline
@@ -42,6 +54,7 @@ abstract class AbstractVersioned[T] extends Versioned {
     if (!versions.contains(seg.version)) {
       seg.written += this
     }
+    cache = ((seg.version << 16) | (seg.version & 0xFFFF))
     versions(seg.version) = v
   }
 
