@@ -1,6 +1,7 @@
 package revisions
 
 import java.util.concurrent.{Callable, ExecutorService, Future}
+import java.util.concurrent.atomic.AtomicInteger
 
 
 class Revision[T](
@@ -8,6 +9,7 @@ class Revision[T](
     private[revisions] var current: Segment
 ) {
   private var task: Future[T] = _
+  private val joinCounter: AtomicInteger = new AtomicInteger
 
   def fork[S](action: => S)(implicit execServ: ExecutorService): Revision[S] = {
     // construct a revision for the new branch
@@ -53,6 +55,8 @@ class Revision[T](
     try {
       // wait for the revision to join to complete
       val res = join.task.get()
+      // fail if this revision has already been joined
+      assert(join.joinCounter.getAndIncrement == 0, "A Revision can only be joined once!")
 
       // walk up its segment history
       var s = join.current
