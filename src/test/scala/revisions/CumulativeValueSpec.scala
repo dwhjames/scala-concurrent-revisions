@@ -29,6 +29,33 @@ class CumulativeValueSpec extends FunSuite {
     assert(x.value === 5)
   }
 
+  test("cumulative defined in branch") {
+    val x = CumulativeValue(0, addMerge)
+
+    val r1 = Revision.fork {
+      assert(x.value === 0)
+
+      x.value += 2
+
+      assert(x.value === 2)
+
+      val y = CumulativeValue(1, addMerge)
+
+      assert(y.value === 1)
+
+      y
+    }
+
+    x.value += 3
+
+    assert(x.value === 3)
+
+    val y = Revision.join(r1)
+
+    assert(x.value === 5)
+    assert(y.value === 1)
+  }
+
   test("inner branch merged after outer brach with cumulative value") {
     val x = CumulativeValue(0, addMerge)
 

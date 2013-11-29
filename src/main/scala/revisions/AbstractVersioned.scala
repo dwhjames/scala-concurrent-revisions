@@ -20,18 +20,36 @@ abstract class AbstractVersioned[T] extends Versioned {
   final def get(rev: Revision[_]): T =
     get(rev.current)
 
-  final protected def get(seg: Segment): T = {
+  /* lookup the index in the map for the value in the revision
+   * history starting from the given segment.
+   * Returns -1 if there is no defined value (assumes that
+   * the global segment version counter starts from zero.)
+   */
+  final protected def getIndex(seg: Segment): Int = {
     val c = cache
     if (seg.version == (c & 0xFFFF)) {
-      versions(c >>> 16)
+      c >>> 16
     } else {
       var s = seg
       while (!versions.contains(s.version)) {
         s = s.parent
+        if (s eq null) return -1
       }
       cache = ((s.version << 16) | (seg.version & 0xFFFF))
-      versions(s.version)
+      s.version
     }
+  }
+
+  /* throws NoSuchElementException if there is no
+   * value in the revision history starting from
+   * the given segment
+   */
+  final protected def get(seg: Segment): T = {
+    val idx = getIndex(seg)
+    if (idx < 0)
+      throw new NoSuchElementException
+    else
+      versions(idx)
   }
 
   final protected def set(rev: Revision[_], x: T): Unit = {

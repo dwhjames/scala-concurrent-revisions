@@ -56,6 +56,31 @@ class VersionedValueSpec extends FunSuite {
     assert(y.value === 0)
   }
 
+  test("versioned value defined in branch") {
+    val x = VersionedValue(0)
+
+    val r = Revision.fork {
+      assert(x.value === 0)
+
+      x.value = 1
+
+      assert(x.value === 1)
+
+      val y = VersionedValue(0)
+
+      assert(y.value === 0)
+
+      y
+    }
+
+    assert(x.value === 0)
+
+    val y = Revision.join(r)
+
+    assert(x.value === 1)
+    assert(y.value === 0)
+  }
+
   test("deterministic double branch 1") {
     val x = VersionedValue(5)
     val y = VersionedValue(7)
