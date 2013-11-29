@@ -1,6 +1,7 @@
 package revisions
 
-import java.util.concurrent.{Callable, ExecutorService, Future}
+import scala.concurrent.forkjoin.ForkJoinTask
+import java.util.concurrent.Callable
 import java.util.concurrent.atomic.AtomicInteger
 
 
@@ -8,10 +9,10 @@ class Revision[T](
     private[revisions] val root: Segment,
     private[revisions] var current: Segment
 ) {
-  private var task: Future[T] = _
+  private var task: ForkJoinTask[T] = _
   private val joinCounter: AtomicInteger = new AtomicInteger
 
-  def fork[S](action: => S)(implicit execServ: ExecutorService): Revision[S] = {
+  def fork[S](action: => S)(implicit exec: RevisionExecutor): Revision[S] = {
     // construct a revision for the new branch
     val r =
       if (current.written.isEmpty) {
@@ -32,9 +33,9 @@ class Revision[T](
         _r
       }
 
-    // fill in the task for the new segment
-    // submit the call by name argument to the executor service
-    r.task = execServ.submit(new Callable[S] {
+    // construct a Callable that will asynchronously execute
+    // the call by name argument `action`
+    val callable = new Callable[S] {
       override def call(): S = {
         // save the current revision on this thread
         val previous = Revision.currentRevision.get()
@@ -47,14 +48,26 @@ class Revision[T](
           Revision.currentRevision.set(previous)
         }
       }
-    })
+    }
+
+    // fill in the task for the new revision
+    if (ForkJoinTask.inForkJoinPool()) {
+      // if we are in a fork join thread
+      // adapt the callable into a task and then fork it
+      r.task = ForkJoinTask.adapt(callable).fork()
+    } else {
+      // else submit the callable to the fork join pool
+      r.task = exec.forkJoinPool.submit(callable)
+    }
+
+    // finally return the new revision
     r
   }
 
   def join[S](join: Revision[S]): S = {
     try {
       // wait for the revision to join to complete
-      val res = join.task.get()
+      val res = join.task.join()
       // fail if this revision has already been joined
       assert(join.joinCounter.getAndIncrement == 0, "A Revision can only be joined once!")
 
@@ -92,7 +105,7 @@ object Revision {
   def currentVersion = currentRevision.get().current.version
 
   // fork an action from the current thread’s revision
-  def fork[T](action: => T)(implicit execServ: ExecutorService): Revision[T] =
+  def fork[T](action: => T)(implicit execServ: RevisionExecutor): Revision[T] =
     currentRevision.get().fork(action)
 
   // join a revision into the current thread’s revision
