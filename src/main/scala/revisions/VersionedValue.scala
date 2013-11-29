@@ -1,24 +1,23 @@
 package revisions
 
 
-class VersionedValue[T](initial: T) extends AbstractVersioned[T](initial) {
+class VersionedValue[T](initial: T) extends AbstractVersioned[T] {
 
-  override def merge(main: Revision[_], joinRev: Revision[_], join: Segment): Unit = {
-    require(versions.contains(join.version))
+  set(Revision.currentRevision.get(), initial)
 
-    // walk back up the segment history of the revision to be joined
-    var s: Segment = joinRev.current
-    while (!versions.contains(s.version)) {
-      // while this value does not have a version in the segment
-      s = s.parent
-    }
-    if (s eq join) {
-      // only merge if the join segment was the last write
-      // in the segment history of the join revision
-      // merge the value into the master revision
-      set(main, versions(join.version))
-    }
-  }
+
+  @inline
+  final def value: T = get
+
+  @inline
+  final def value_=(v: T): Unit = set(v)
+
+  @inline
+  final def set(v: T): Unit =
+    set(Revision.currentRevision.get(), v)
+
+  override protected def computeMerge(main: Revision[_], joinRev: Revision[_], join: Segment): T =
+    versions(join.version)
 
 }
 
