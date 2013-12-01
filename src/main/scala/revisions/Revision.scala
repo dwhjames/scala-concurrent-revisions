@@ -1,6 +1,8 @@
 package revisions
 
+import scala.annotation.elidable
 import scala.concurrent.forkjoin.ForkJoinTask
+
 import java.util.concurrent.Callable
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -10,7 +12,13 @@ class Revision[T](
     private[revisions] var current: Segment
 ) {
   private var task: ForkJoinTask[T] = _
-  private val joinCounter: AtomicInteger = new AtomicInteger
+  private var joinSet: Set[Revision[_]] = _
+
+  @elidable(elidable.ASSERTION) @inline
+  private def updateJoinSetOnFork(r: Revision[_]): Unit = {
+    r.joinSet = joinSet
+    joinSet = joinSet + r
+  }
 
   def fork[S](action: => S)(implicit exec: RevisionExecutor): Revision[S] = {
     // construct a revision for the new branch
@@ -32,6 +40,8 @@ class Revision[T](
 
         _r
       }
+
+    updateJoinSetOnFork(r)
 
     // construct a Callable that will asynchronously execute
     // the call by name argument `action`
@@ -64,12 +74,24 @@ class Revision[T](
     r
   }
 
+  @elidable(elidable.ASSERTION) @inline
+  private def updateJoinSetOnJoin(r: Revision[_]): Unit = {
+    joinSet = (joinSet - r) union r.joinSet
+  }
+
   def join[S](join: Revision[S]): S = {
+    /* fail if this revision is not in the set of valid revisions to join
+     * this is the case if:
+     *   1. the revision has already been joined
+     *   2. the revision has been tunneled out isolation through shared memory
+     */
+    assume(joinSet contains join, "Invalid join on revision!")
+
     try {
       // wait for the revision to join to complete
       val res = join.task.join()
-      // fail if this revision has already been joined
-      assert(join.joinCounter.getAndIncrement == 0, "A Revision can only be joined once!")
+
+      updateJoinSetOnJoin(join)
 
       // walk up its segment history
       var s = join.current
@@ -96,7 +118,9 @@ object Revision {
   val currentRevision = new ThreadLocal[Revision[_]] {
     override def initialValue(): Revision[_] = {
       val s = new Segment
-      new Revision[Nothing](s, s)
+      val r = new Revision[Nothing](s, s)
+      r.joinSet = Set.empty
+      r
     }
   }
 

@@ -556,4 +556,66 @@ class VersionedValueSpec extends FunSuite {
     assert(x.value === 2)
   }
 
+  test("illegal attempt to merge inner branch before outer branch") {
+    val x = VersionedValue(0)
+
+    @volatile
+    var r2: Revision[_] = null
+
+    val r1 = Revision.fork {
+      x.value = 1
+
+      r2 = Revision.fork {
+        x.value = 2
+      }
+    }
+
+    while (r2 eq null) { }
+
+    intercept[AssertionError] {
+      Revision.join(r2)
+    }
+  }
+
+  test("illegal attempt to crisscross branches") {
+    val x = VersionedValue(0)
+
+    @volatile
+    var r3: Revision[_] = null
+
+    @volatile
+    var r4: Revision[_] = null
+
+    val r1 = Revision.fork {
+      x.value = 1
+
+      r3 = Revision.fork {
+        x.value = 3
+      }
+
+      while (r4 eq null) { }
+
+      intercept[AssertionError] {
+        Revision.join(r4)
+      }
+    }
+
+    val r2 = Revision.fork {
+      x.value = 2
+
+      r4 = Revision.fork {
+        x.value = 4
+      }
+
+      while (r3 eq null) { }
+
+      intercept[AssertionError] {
+        Revision.join(r3)
+      }
+    }
+
+    Revision.join(r1)
+    Revision.join(r2)
+  }
+
 }
