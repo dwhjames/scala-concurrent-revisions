@@ -126,7 +126,7 @@ object Revision {
 
   // diagnostic method to expose the version number of the current segment version
   // for the current thread’s revision
-  def currentVersion = currentRevision.get().current.version
+  // def currentVersion = currentRevision.get().current.version
 
   // fork an action from the current thread’s revision
   def fork[T](action: => T)(implicit execServ: RevisionExecutor): Revision[T] =
