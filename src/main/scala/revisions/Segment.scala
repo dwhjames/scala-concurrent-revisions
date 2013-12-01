@@ -31,8 +31,8 @@ class Segment(
     // we should only be invoking this method on the current segment of the revision
     require(main.current eq this)
 
-    // while parent is not the root, and parent is not referenced
-    while ((parent ne main.root) && (parent.refCount.get() == 0)) {
+    // while parent is not the root, and parent is only referenced by this
+    while ((parent ne main.root) && (parent.refCount.get() == 1)) {
       // collapse every versioned object written to in the parent
       for (v <- parent.written)
         v.collapse(main, parent)
