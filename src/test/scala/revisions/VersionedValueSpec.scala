@@ -21,6 +21,20 @@ class VersionedValueSpec extends FunSuite {
     assert(v.value === 1)
   }
 
+  test("an empty revision") {
+    val v = VersionedValue(0)
+
+    val r = Revision.fork {
+      assert(v.value === 0)
+    }
+
+    assert(v.value === 0)
+
+    Revision.join(r)
+
+    assert(v.value === 0)
+  }
+
   test("a join uses the value of the branch") {
     val v = VersionedValue(0)
 
@@ -45,6 +59,26 @@ class VersionedValueSpec extends FunSuite {
     }
 
     Revision.join(r)
+
+    intercept[AssertionError] {
+      Revision.join(r)
+    }
+  }
+
+  test("a revision branch can throw an exception") {
+    val v = VersionedValue(0)
+
+    val r = Revision.fork {
+      v.value = 1
+
+      throw new RuntimeException
+    }
+
+    intercept[RuntimeException] {
+      Revision.join(r)
+    }
+
+    assert(v.value === 0)
 
     intercept[AssertionError] {
       Revision.join(r)

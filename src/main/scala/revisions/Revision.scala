@@ -75,8 +75,13 @@ class Revision[T](
   }
 
   @elidable(elidable.ASSERTION) @inline
-  private def updateJoinSetOnJoin(r: Revision[_]): Unit = {
-    joinSet = (joinSet - r) union r.joinSet
+  private def unionJoinSets(r: Revision[_]): Unit = {
+    joinSet = joinSet union r.joinSet
+  }
+
+  @elidable(elidable.ASSERTION) @inline
+  private def removeRevisionFromJoinSet(r: Revision[_]): Unit = {
+    joinSet = joinSet - r
   }
 
   def join[S](join: Revision[S]): S = {
@@ -91,7 +96,7 @@ class Revision[T](
       // wait for the revision to join to complete
       val res = join.task.join()
 
-      updateJoinSetOnJoin(join)
+      unionJoinSets(join)
 
       // walk up its segment history
       var s = join.current
@@ -105,6 +110,7 @@ class Revision[T](
 
       res
     } finally {
+      removeRevisionFromJoinSet(join)
       // release the segments in the joined revision
       join.current.release()
       // collapse the segments in this revision
