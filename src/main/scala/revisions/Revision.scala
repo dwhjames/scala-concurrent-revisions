@@ -117,6 +117,19 @@ class Revision[T](
       current.collapse(this)
     }
   }
+
+  def abandon(join: Revision[_]): Unit = {
+    assume(joinSet contains join, "Invalid join on revision!")
+
+    try {
+      join.task.join()
+      ()
+    } finally {
+      removeRevisionFromJoinSet(join)
+      join.current.release()
+      current.collapse(this)
+    }
+  }
 }
 
 object Revision {
