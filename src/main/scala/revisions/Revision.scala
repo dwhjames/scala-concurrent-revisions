@@ -11,8 +11,8 @@ class Revision[T](
     private[revisions] val root: Segment,
     private[revisions] var current: Segment
 ) {
-  private var task: ForkJoinTask[T] = _
-  private var joinSet: Set[Revision[_]] = _
+  @volatile private var task: ForkJoinTask[T] = _
+  @volatile private var joinSet: Set[Revision[_]] = _
 
   @elidable(elidable.ASSERTION) @inline
   private def updateJoinSetOnFork(r: Revision[_]): Unit = {
