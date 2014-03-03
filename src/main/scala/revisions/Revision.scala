@@ -2,6 +2,8 @@ package revisions
 
 import scala.annotation.elidable
 import scala.concurrent.forkjoin.ForkJoinTask
+import com.twitter.conversions.time._
+import com.twitter.util.{Try, Await, Future, Promise}
 
 import java.util.concurrent.Callable
 import java.util.concurrent.atomic.AtomicInteger
@@ -11,7 +13,7 @@ class Revision[T](
     private[revisions] val root: Segment,
     private[revisions] var current: Segment
 ) {
-  @volatile private var task: ForkJoinTask[T] = _
+  @volatile private var future: Future[T] = _
   @volatile private var joinSet: Set[Revision[_]] = _
 
   @elidable(elidable.ASSERTION) @inline
@@ -43,31 +45,39 @@ class Revision[T](
 
     updateJoinSetOnFork(r)
 
+    val p = Promise[S]()
+
     // construct a Callable that will asynchronously execute
     // the call by name argument `action`
     val callable = new Callable[S] {
       override def call(): S = {
-        // save the current revision on this thread
-        val previous = Revision.currentRevision.get()
-        // set the current revision on this thread to the revision we created
-        Revision.currentRevision.set(r)
-        try {
-          action
-        } finally {
-          // restore the original revision
-          Revision.currentRevision.set(previous)
+        val result = Try {
+          // save the current revision on this thread
+          val previous = Revision.currentRevision.get()
+          // set the current revision on this thread to the revision we created
+          Revision.currentRevision.set(r)
+          try {
+            action
+          } finally {
+            // restore the original revision
+            Revision.currentRevision.set(previous)
+          }
         }
+        p.update(result)
+        result.get
       }
     }
 
     // fill in the task for the new revision
+    r.future = p
+
     if (ForkJoinTask.inForkJoinPool()) {
       // if we are in a fork join thread
       // adapt the callable into a task and then fork it
-      r.task = ForkJoinTask.adapt(callable).fork()
+      ForkJoinTask.adapt(callable).fork()
     } else {
       // else submit the callable to the fork join pool
-      r.task = exec.forkJoinPool.submit(callable)
+      exec.forkJoinPool.submit(callable)
     }
 
     // finally return the new revision
@@ -84,17 +94,24 @@ class Revision[T](
     joinSet = joinSet - r
   }
 
-  def join[S](join: Revision[S]): S = {
+  def join[S](join: Revision[S]): S =
+    Await.result(asyncJoin(join))
+
+  def asyncJoin[S](join: Revision[S]): Future[S] = {
     /* fail if this revision is not in the set of valid revisions to join
      * this is the case if:
      *   1. the revision has already been joined
      *   2. the revision has been tunneled out isolation through shared memory
      */
-    assume(joinSet contains join, "Invalid join on revision!")
 
     try {
+      assume(joinSet contains join, "Invalid join on revision!")
+    } catch {
+      case t: AssertionError => return Future.exception(t)
+    }
+
+    join.future map { res =>
       // wait for the revision to join to complete
-      val res = join.task.join()
 
       unionJoinSets(join)
 
@@ -109,7 +126,8 @@ class Revision[T](
       }
 
       res
-    } finally {
+
+    } ensure {
       removeRevisionFromJoinSet(join)
       // release the segments in the joined revision
       join.current.release()
@@ -122,7 +140,7 @@ class Revision[T](
     assume(joinSet contains join, "Invalid join on revision!")
 
     try {
-      join.task.join()
+      Await.result(join.future)
       ()
     } finally {
       removeRevisionFromJoinSet(join)
